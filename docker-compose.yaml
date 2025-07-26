@@ -1,0 +1,82 @@
+services:
+  app:
+    container_name: karakeep-app
+    image: ghcr.io/karakeep-app/karakeep:release
+    restart: unless-stopped
+    volumes:
+      - /home/patrick/karakeep/karakeep/data:/data
+    ports:
+      - 3000:3000
+    env_file:
+      - .env
+    environment:
+      MEILI_ADDR: http://meilisearch:7700
+      BROWSER_WEB_URL: http://chrome:9222
+      DATA_DIR: /data # DON'T CHANGE THIS
+
+  chrome:
+    container_name: karakeep-chrome
+    image: gcr.io/zenika-hub/alpine-chrome:123
+    restart: unless-stopped
+    command:
+      - --no-sandbox
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --hide-scrollbars
+
+  meilisearch:
+    container_name: karakeep-search
+    image: getmeili/meilisearch:v1.13.3
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - /home/patrick/karakeep/karakeep/meilisearch:/meili_data
+
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: unless-stopped
+    environment:
+      - TRAEFIK_CERTIFICATESRESOLVERS_CLOUDFLARE_ACME_EMAIL=${CF_API_EMAIL}
+      - CF_API_EMAIL
+      - CF_DNS_API_TOKEN
+      - TRAEFIK_AUTH
+      - HOST_NAME
+      - APP_URL
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yaml:/traefik.yaml:ro
+      - ./traefik/config.yaml:/config.yaml:ro
+      - ./traefik/data/acme.json:/acme.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.traefik.loadbalancer.server.port=1337"
+      - "traefik.http.routers.traefik-secure.tls=true"
+      - "traefik.http.routers.traefik-secure.tls.certresolver=cloudflare"
+      - "traefik.http.routers.traefik-secure.tls.domains[0].main=${APP_URL}"
+      - "traefik.http.routers.traefik-secure.service=api@internal"
+    network_mode: service:tailscale
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: ${HOST_NAME}
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}?ephemeral=false
+      - TS_EXTRA_ARGS=--advertise-tags=tag:${HOST_NAME}
+      - TS_STATE_DIR=/var/lib/tailscale
+    volumes:
+      - ./tailscale/state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+    restart: unless-stopped
+    ports:
+      - 443:443
+      - 80:80

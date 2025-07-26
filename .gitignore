@@ -1,0 +1,5 @@
+.env
+karakeep/data/
+karakeep/meilisearch/
+traefik/data/acme.json
+tailscale/

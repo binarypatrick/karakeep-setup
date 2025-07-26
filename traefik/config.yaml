@@ -1,0 +1,39 @@
+http:
+  routers:
+    webapp:
+      entryPoints:
+        - "https"
+      rule: Host(`{{env "APP_URL"}}`)
+      middlewares:
+        - default-headers
+        - https-redirectscheme
+      tls: {}
+      service: webapp
+
+  services:
+    webapp:
+      loadBalancer:
+        servers:
+          - url: "http://karakeep-app:3000"
+        passHostHeader: true
+
+  middlewares:
+    https-redirectscheme:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    default-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 15552000
+        customFrameOptionsValue: SAMEORIGIN
+        customResponseHeaders:
+          X-Proxy-By: {{ env "HOST_NAME" }}
+        customRequestHeaders:
+          X-Forwarded-Proto: https
